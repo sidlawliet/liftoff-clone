@@ -1,199 +1,236 @@
+import React, { useEffect, useState } from 'react'
 import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Text } from '@/components/ui/Text'
 import { Card } from '@/components/ui/Card'
-import {
-    BG,
-    BORDER,
-    SUCCESS,
-    WARNING,
-    ERROR,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
-    TEXT_TERTIARY,
-    ACCENT,
-} from '@/lib/theme'
-import StatusBadge from '@/components/ui/StatusBadge'
-import { statusLabel, type ItemStatus, type TaskItem } from '@/lib/mockData'
-import { useItem, useItemTasks } from '@/hooks/useItems'
+import { Button } from '@/components/ui/Button'
+import { workoutDb, type WorkoutLog, type LoggedSet } from '@/lib/workoutDb'
+import { BG, SURFACE, SURFACE2, BORDER, ACCENT, ACCENT_DIM, ACCENT_LIGHT, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY, WARNING, SUCCESS } from '@/lib/theme'
 
-export default function DetailScreen() {
-    const insets = useSafeAreaInsets()
-    const { id } = useLocalSearchParams<{ id: string }>()
-
-    const { data: item, isLoading } = useItem(id)
-    const { data: tasks = [] } = useItemTasks(id)
-
-    if (isLoading) {
-        return (
-            <View style={[s.centered, { backgroundColor: BG }]}>
-                <ActivityIndicator color={ACCENT} />
-            </View>
-        )
-    }
-
-    if (!item) {
-        return (
-            <View style={[s.centered, { backgroundColor: BG }]}>
-                <Text style={s.notFoundTitle}>Item not found</Text>
-                <Pressable onPress={() => router.back()} style={s.notFoundBtn}>
-                    <Text style={s.notFoundBtnText}>Go back</Text>
-                </Pressable>
-            </View>
-        )
-    }
-
-    return (
-        <View style={{ flex: 1, backgroundColor: BG }}>
-            <View style={[s.header, { paddingTop: insets.top + 8 }]}>
-                <Pressable onPress={() => router.back()} hitSlop={12}>
-                    <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.6)" />
-                </Pressable>
-                <Text style={s.headerTitle} numberOfLines={1}>{item.name}</Text>
-                <View style={{ width: 24 }} />
-            </View>
-
-            <ScrollView
-                contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 28 }]}
-                showsVerticalScrollIndicator={false}
-            >
-                <Card style={s.summaryCard}>
-                    <View style={s.summaryTop}>
-                        <StatusBadge status={item.status} label={statusLabel(item.status)} />
-                        <Text style={s.updatedText}>Updated {item.updatedAt}</Text>
-                    </View>
-
-                    <Text style={s.summaryText}>{item.summary}</Text>
-
-                    <View style={s.metricsRow}>
-                        <MetricItem label="Completion" value={`${item.completion}%`} />
-                        <MetricItem label="Health" value={`${item.health}`} />
-                        <MetricItem label="Active users" value={`${item.activeUsers}`} />
-                    </View>
-                </Card>
-
-                <Text style={s.sectionTitle}>Tasks</Text>
-                <Card compact style={s.listCard}>
-                    {tasks.map((task, index) => (
-                        <View key={task.id} style={[s.taskRow, index < tasks.length - 1 && s.taskDivider]}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={s.taskTitle}>{task.title}</Text>
-                                <Text style={s.taskSub}>{task.state} · Due {task.dueDate}</Text>
-                            </View>
-                            <View style={[s.priorityPill, priorityStyle(task)]}>
-                                <Text style={s.priorityText}>{task.priority}</Text>
-                            </View>
-                        </View>
-                    ))}
-                </Card>
-            </ScrollView>
-        </View>
-    )
+// Format seconds into H:MM:SS or MM:SS
+function formatDuration(totalSeconds: number): string {
+  const hrs = Math.floor(totalSeconds / 3600)
+  const mins = Math.floor((totalSeconds % 3600) / 60)
+  const secs = totalSeconds % 60
+  
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m`
+  }
+  return `${mins}m ${secs}s`
 }
 
-function MetricItem({ label, value }: { label: string; value: string }) {
+export default function WorkoutDetailScreen() {
+  const insets = useSafeAreaInsets()
+  const { id } = useLocalSearchParams<{ id: string }>()
+
+  const [log, setLog] = useState<WorkoutLog | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadWorkout()
+  }, [id])
+
+  const loadWorkout = async () => {
+    setLoading(true)
+    const logs = await workoutDb.getWorkoutLogs()
+    const found = logs.find((l) => l.id === id)
+    setLog(found || null)
+    setLoading(false)
+  }
+
+  if (loading) {
     return (
-        <View style={s.metricItem}>
-            <Text style={s.metricLabel}>{label}</Text>
-            <Text style={s.metricValue}>{value}</Text>
-        </View>
+      <View style={[s.centered, { backgroundColor: BG }]}>
+        <ActivityIndicator color={ACCENT} size="large" />
+      </View>
     )
-}
+  }
 
+  if (!log) {
+    return (
+      <View style={[s.centered, { backgroundColor: BG }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={TEXT_TERTIARY} />
+        <Text style={s.notFoundTitle}>Workout Log Not Found</Text>
+        <Button label="Go back" onPress={() => router.back()} style={{ marginTop: 12 }} />
+      </View>
+    )
+  }
 
+  // Find all sets in this workout that were PRs
+  const prSets = log.exercises.flatMap((ex) =>
+    ex.sets
+      .filter((set) => set.isPR)
+      .map((set) => ({
+        exerciseName: ex.name,
+        weight: set.weight,
+        reps: set.reps
+      }))
+  )
 
-function priorityStyle(task: TaskItem) {
-    switch (task.priority) {
-        case 'high':
-            return {
-                borderColor: `${ERROR}55`,
-                backgroundColor: `${ERROR}18`,
-            }
-        case 'medium':
-            return {
-                borderColor: `${WARNING}55`,
-                backgroundColor: `${WARNING}18`,
-            }
-        case 'low':
-            return {
-                borderColor: `${SUCCESS}55`,
-                backgroundColor: `${SUCCESS}18`,
-            }
-        default:
-            return {
-                borderColor: BORDER,
-                backgroundColor: 'rgba(255,255,255,0.05)',
-            }
-    }
+  return (
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Header bar */}
+      <View style={[s.header, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={TEXT_SECONDARY} />
+        </Pressable>
+        <Text style={s.headerTitle} numberOfLines={1}>Workout Summary</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 40 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Main Title Log Details */}
+        <View style={s.metaBlock}>
+          <Text style={s.logName}>{log.name}</Text>
+          <Text style={s.logDate}>
+            {new Date(log.startedAt).toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </Text>
+        </View>
+
+        {/* Stats metrics row */}
+        <View style={s.metricsRow}>
+          <Card style={s.metricCard}>
+            <Ionicons name="barbell-outline" size={16} color={ACCENT} />
+            <Text style={s.metricValue}>{log.totalVolume.toLocaleString()} kg</Text>
+            <Text style={s.metricLabel}>Total Volume</Text>
+          </Card>
+          <Card style={s.metricCard}>
+            <Ionicons name="time-outline" size={16} color={ACCENT} />
+            <Text style={s.metricValue}>{formatDuration(log.durationSeconds)}</Text>
+            <Text style={s.metricLabel}>Duration</Text>
+          </Card>
+          <Card style={s.metricCard}>
+            <Ionicons name="trophy-outline" size={16} color={WARNING} />
+            <Text style={s.metricValue}>{log.prsBroken}</Text>
+            <Text style={s.metricLabel}>PRs Smashed</Text>
+          </Card>
+        </View>
+
+        {/* Trophy Room Celebration Panel */}
+        {prSets.length > 0 && (
+          <Card style={s.trophyRoomCard}>
+            <View style={s.trophyHeader}>
+              <Text style={{ fontSize: 20 }}>🏆</Text>
+              <Text style={s.trophyTitle}>TROPHY ROOM CELEBRATION</Text>
+            </View>
+            <Text style={s.trophyDetail}>
+              Outstanding! You broke {prSets.length} personal record{prSets.length > 1 ? 's' : ''} in this workout:
+            </Text>
+            <View style={s.trophyList}>
+              {prSets.map((pr, idx) => (
+                <View key={idx} style={s.trophyRow}>
+                  <Ionicons name="ribbon-sharp" size={14} color="#fbbf24" />
+                  <Text style={s.trophyRowText}>
+                    {pr.exerciseName}: <Text style={{ color: '#fff', fontWeight: '800' }}>{pr.weight}kg x {pr.reps}</Text>
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        )}
+
+        {/* Exercises Performed List */}
+        <Text style={s.sectionTitle}>Exercises Performed</Text>
+        {log.exercises.map((ex) => (
+          <Card key={ex.id} style={s.exerciseCard}>
+            <View style={s.exHeader}>
+              <Text style={s.exName}>{ex.name}</Text>
+              <Text style={s.exMuscle}>{ex.muscleGroup}</Text>
+            </View>
+
+            <View style={s.setsList}>
+              {ex.sets.map((set, setIdx) => (
+                <View key={setIdx} style={s.setRow}>
+                  <Text style={s.setIndex}>Set {setIdx + 1}</Text>
+                  <Text style={s.setVolume}>{set.weight} kg x {set.reps}</Text>
+                  
+                  {set.isPR ? (
+                    <View style={s.prBadge}>
+                      <Ionicons name="ribbon" size={10} color="#000" style={{ marginRight: 2 }} />
+                      <Text style={s.prBadgeText}>PR</Text>
+                    </View>
+                  ) : (
+                    <View style={{ width: 40 }} />
+                  )}
+                </View>
+              ))}
+            </View>
+          </Card>
+        ))}
+
+        <Button
+          variant="secondary"
+          label="Back to Dashboard"
+          onPress={() => router.replace('/(tabs)')}
+          style={{ marginTop: 12 }}
+        />
+      </ScrollView>
+    </View>
+  )
 }
 
 const s = StyleSheet.create({
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-    notFoundTitle: { color: TEXT_PRIMARY, fontSize: 17, fontWeight: '700' },
-    notFoundBtn: {
-        borderWidth: 1,
-        borderColor: BORDER,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
-    notFoundBtnText: { color: TEXT_SECONDARY, fontSize: 13, fontWeight: '600' },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(255,255,255,0.08)',
-    },
-    headerTitle: { flex: 1, color: TEXT_PRIMARY, fontSize: 16.5, fontWeight: '700', textAlign: 'center' },
-    body: { padding: 20, gap: 12 },
-    summaryCard: { gap: 8 },
-    summaryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    updatedText: { fontSize: 11, color: TEXT_TERTIARY },
-    summaryText: { fontSize: 13, lineHeight: 19, color: TEXT_SECONDARY },
-    metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2 },
-    metricItem: {
-        minWidth: 120,
-        borderWidth: 1,
-        borderColor: BORDER,
-        borderRadius: 10,
-        paddingVertical: 8,
-        paddingHorizontal: 9,
-        backgroundColor: 'rgba(255,255,255,0.03)',
-    },
-    metricLabel: { fontSize: 11, color: TEXT_TERTIARY },
-    metricValue: { fontSize: 14, color: TEXT_PRIMARY, fontWeight: '700', marginTop: 2 },
-    sectionTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: TEXT_TERTIARY,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase',
-        marginTop: 3,
-    },
-    listCard: { padding: 0, overflow: 'hidden' },
-    taskRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 13,
-        paddingVertical: 11,
-    },
-    taskDivider: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: BORDER,
-    },
-    taskTitle: { fontSize: 13.5, color: TEXT_PRIMARY, fontWeight: '600' },
-    taskSub: { marginTop: 2, fontSize: 12, color: TEXT_SECONDARY },
-    priorityPill: {
-        borderWidth: 1,
-        borderRadius: 999,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-    },
-    priorityText: { fontSize: 11, color: TEXT_PRIMARY, fontWeight: '700', textTransform: 'capitalize' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20 },
+  notFoundTitle: { color: TEXT_SECONDARY, fontSize: 16, fontWeight: '700' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORDER
+  },
+  backBtn: { padding: 4 },
+  headerTitle: { flex: 1, color: TEXT_PRIMARY, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  body: { padding: 20, gap: 16 },
+  metaBlock: { gap: 4 },
+  logName: { fontSize: 24, fontWeight: '900', color: '#fff' },
+  logDate: { fontSize: 13, color: TEXT_SECONDARY },
+  metricsRow: { flexDirection: 'row', gap: 10 },
+  metricCard: { flex: 1, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', gap: 4, backgroundColor: SURFACE },
+  metricValue: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  metricLabel: { fontSize: 10, color: TEXT_TERTIARY },
+  trophyRoomCard: {
+    padding: 16,
+    gap: 8,
+    backgroundColor: 'rgba(251,191,36,0.03)',
+    borderColor: 'rgba(251,191,36,0.18)',
+    borderWidth: 1
+  },
+  trophyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trophyTitle: { fontSize: 11, fontWeight: '800', color: '#fbbf24', letterSpacing: 0.8 },
+  trophyDetail: { fontSize: 13, color: TEXT_SECONDARY, lineHeight: 18 },
+  trophyList: { gap: 6, marginTop: 4 },
+  trophyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trophyRowText: { fontSize: 12, color: TEXT_SECONDARY },
+  sectionTitle: { fontSize: 11, fontWeight: '700', color: TEXT_TERTIARY, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 10 },
+  exerciseCard: { padding: 16, gap: 12, backgroundColor: SURFACE },
+  exHeader: { gap: 2 },
+  exName: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  exMuscle: { fontSize: 11, color: TEXT_TERTIARY },
+  setsList: { gap: 6 },
+  setRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.04)' },
+  setIndex: { fontSize: 13, color: TEXT_SECONDARY, fontWeight: '600' },
+  setVolume: { fontSize: 13, color: '#fff', fontWeight: '700' },
+  prBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fbbf24',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  prBadgeText: { fontSize: 10, color: '#000', fontWeight: '800' }
 })

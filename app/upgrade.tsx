@@ -28,7 +28,28 @@ import { PurchasesPackage } from 'react-native-purchases'
 import Purchases from 'react-native-purchases'
 import { track } from '@/lib/analytics'
 import { adjustBrightness } from '@/lib/utils'
-import * as Haptics from 'expo-haptics'
+import * as ExpoHaptics from 'expo-haptics'
+
+const Haptics = {
+  impactAsync: (style: any) => {
+    if (Platform.OS === 'web') return Promise.resolve()
+    try {
+      return ExpoHaptics.impactAsync(style)
+    } catch (e) {
+      return Promise.resolve()
+    }
+  },
+  notificationAsync: (type: any) => {
+    if (Platform.OS === 'web') return Promise.resolve()
+    try {
+      return ExpoHaptics.notificationAsync(type)
+    } catch (e) {
+      return Promise.resolve()
+    }
+  },
+  get ImpactFeedbackStyle() { return ExpoHaptics.ImpactFeedbackStyle },
+  get NotificationFeedbackType() { return ExpoHaptics.NotificationFeedbackType }
+}
 import { ACCENT, ACCENT_DIM, ACCENT_BORDER, BG, SURFACE, BORDER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY } from '@/lib/theme'
 
 // 🎨 BRAND: Customize your feature list

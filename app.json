@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "MyApp",
-    "slug": "my-app",
+    "name": "Liftoff",
+    "slug": "liftoff",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "myapp",
+    "scheme": "liftoff",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d0d0d"
+      "backgroundColor": "#08080a"
     },
     "ios": {
       "supportsTablet": false,

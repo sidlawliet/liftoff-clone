@@ -10,10 +10,10 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: '#0d0d0d',
-        accent: '#0ea5a4',      // 🎨 BRAND: your primary accent color
-        surface: '#1a1a1a',
-        surface2: '#242424',
+        background: '#08080a',
+        accent: '#a3e635',      // 🎨 BRAND: neon lime green
+        surface: '#121214',
+        surface2: '#1a1a1f',
         muted: '#6b7280',
       },
     },

@@ -36,6 +36,8 @@ import { posthog, isPostHogEnabled, identify, resetIdentity, track } from '@/lib
 import { configureRevenueCat, loginRevenueCat, logoutRevenueCat } from '@/lib/purchases'
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext'
 import { ToastProvider } from '@/contexts/ToastContext'
+import { WorkoutProvider } from '@/contexts/WorkoutContext'
+import WorkoutLoggerSheet from '@/components/WorkoutLoggerSheet'
 import i18n, { initI18n } from '@/lib/i18n'
 import OfflineBanner from '@/components/OfflineBanner'
 import OfflineOverlay from '@/components/OfflineOverlay'
@@ -146,8 +148,9 @@ function RootLayout() {
     configureRevenueCat()
 
     if (!isSupabaseEnabled) {
-      // No credentials — stay on landing page, no errors thrown
-      setIsAuthed(false)
+      // No credentials — auto-authorize demo user so the app is instantly testable offline
+      setIsAuthed(true)
+      setOnboardingCompleted(true)
       return
     }
 
@@ -217,6 +220,7 @@ function RootLayout() {
           <QueryClientProvider client={queryClient}>
           <SubscriptionProvider>
             <ToastProvider>
+            <WorkoutProvider>
             <SafeAreaProvider>
               <GestureHandlerRootView style={{ flex: 1, backgroundColor: BG }}>
                 <BottomSheetModalProvider>
@@ -259,6 +263,7 @@ function RootLayout() {
                         <Stack.Screen name="privacy" />
                         <Stack.Screen name="terms" />
                       </Stack>
+                      <WorkoutLoggerSheet />
                       <ScreenTracker />
                       <OfflineBanner />
                       <OfflineOverlay />
@@ -267,6 +272,7 @@ function RootLayout() {
                 </BottomSheetModalProvider>
               </GestureHandlerRootView>
             </SafeAreaProvider>
+            </WorkoutProvider>
             </ToastProvider>
           </SubscriptionProvider>
           </QueryClientProvider>
